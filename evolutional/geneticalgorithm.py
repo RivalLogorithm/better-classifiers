@@ -1,5 +1,6 @@
 import random
 from random import randint, uniform
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 class Chromosome:
@@ -21,7 +22,9 @@ class GeneticAlgorithm:
         self.initial_population = self.generate_initial_population()
 
     def run(self):
-        for _ in range(self.generations):
+        history = []
+        for g in range(self.generations):
+            print(g)
             i1 = randint(0, self.population_size - 1)
             i2 = randint(0, self.population_size - 1)
             while i1 == i2:
@@ -29,16 +32,23 @@ class GeneticAlgorithm:
 
             child_population = self.crossover(self.initial_population[i1], self.initial_population[i2])
             self.initial_population += child_population
-            self.initial_population = sorted(self.initial_population, key=lambda x: x.fitness[1], reverse=True)
-            self.initial_population = self.initial_population[:len(self.initial_population) - 2]
+            self.population_size += 2
+            self.initial_population = sorted(self.initial_population, key=lambda x: x.fitness[0], reverse=True)
+            # self.initial_population = self.initial_population[:len(self.initial_population) - 2]
 
             self.best_solution = self.initial_population[0]
-        return self.best_solution.fitness
+            history.append(self.best_solution.fitness[0])
+        return self.best_solution.fitness, history
 
     def generate_initial_population(self):
         population = []
-        while len(population) < self.population_size:
+        futures = []
+        executor = ProcessPoolExecutor()
+        counter = 0
+        for _ in range(self.population_size):
             arguments =[]
+            print(counter)
+            counter += 1
             for i in range(len(self.varbound)):
                 if self.vartype[i] == 'int':
                     arguments.append(randint(self.varbound[i][0], self.varbound[i][1]))
@@ -46,10 +56,13 @@ class GeneticAlgorithm:
                     arguments.append(uniform(self.varbound[i][0], self.varbound[i][1]))
                 elif self.vartype[i] == 'str':
                     arguments.append(random.choice(self.varbound[i]))
-                    # arguments.append(self.varbound[i][randint(0, len(self.varbound[i]))])
                 elif self.vartype[i] == 'bool':
                     arguments.append(random.choice(self.varbound[i]))
-            population.append(Chromosome(self.function, arguments))
+            result = executor.submit(init_chromosome, self.function, arguments)
+            futures.append(result)
+        for future in as_completed(futures):
+            population.append(future.result())
+            print("appended")
         return population
 
     def crossover(self, parent1, parent2):
@@ -69,3 +82,6 @@ class GeneticAlgorithm:
         for i in range(br_point, len(parent1)):
             child.append(parent2[i])
         return child
+
+def init_chromosome(func, params):
+    return Chromosome(func, params)
