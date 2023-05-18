@@ -34,7 +34,6 @@ class GeneticAlgorithm:
             self.initial_population += child_population
             self.population_size += 2
             self.initial_population = sorted(self.initial_population, key=lambda x: x.fitness[0], reverse=True)
-            # self.initial_population = self.initial_population[:len(self.initial_population) - 2]
 
             self.best_solution = self.initial_population[0]
             history.append(self.best_solution.fitness[0])

@@ -1,4 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
@@ -22,27 +22,6 @@ class ParallelClassifier:
         self.X_test = test_data.iloc[:, :-1]
         self.y_test = test_data.iloc[:, -1]
         models = []
-        # if 'oc-svm' in self.classifiers:
-        #     models.append(opt.Optimization('genetic-algorithm',
-        #                              function=self.one_class_svm_func,
-        #                              population_size=100,
-        #                              generations=1000,
-        #                              varbound=varbound[self.classifiers.index('oc-svm')],
-        #                              vartype=['str', 'real', 'int', 'real', 'real', 'bool']))
-        # if 'if' in self.classifiers:
-        #     models.append(opt.Optimization('genetic-algorithm',
-        #                                    function=self.if_func,
-        #                                    population_size=100,
-        #                                    generations=1000,
-        #                                    varbound=varbound[self.classifiers.index('if')],
-        #                                    vartype=['int', 'int', 'real', 'real', 'bool']))
-        # if 'lof' in self.classifiers:
-        #     models.append(opt.Optimization('genetic-algorithm',
-        #                                    function=self.lof_func,
-        #                                    population_size=100,
-        #                                    generations=1000,
-        #                                    varbound=varbound[self.classifiers.index('lof')],
-        #                                    vartype=['int', 'str', 'int', 'str', 'int', 'real']))
 
         models.append(opt.Optimization('differential-evolution',
                                        function=self.one_class_svm_func,
@@ -96,11 +75,9 @@ class ParallelClassifier:
 
         results = []
         for model in models:
-            # results.append(model.optimize())
             results.append(p.submit(model.optimize))
         for i in range(len(results)):
             self.best_results.update({self.classifiers[i]: results[i].result()})
-            # self.best_results.update({self.classifiers[i]: results[i]})
         p.shutdown()
         print("--- %s seconds ---" % (time.time() - start_time))
         print("Best results: {}".format(self.best_results))

@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from tqdm.autonotebook import tqdm
 
+
 class Vector:
     def __init__(self, function, params):
         self.function = function
@@ -49,7 +50,6 @@ class DifferentialEvolution:
         self.vartype = vartype
         self.initial_population = self.generate_initial_population()
         self.scaler = MinMaxScaler()
-        # self.tresholds = self.scaler.fit_transform(np.array([np.log((np.exp(1)/division_count) * x) for x in range(1, division_count+2)]).reshape(-1, 1))
         self.division_count = division_count
         self.divisions = []
         self.F = F
@@ -60,12 +60,10 @@ class DifferentialEvolution:
 
     def run(self):
         p = ProcessPoolExecutor(6)
-        current_best = 0
         current_g = 0
         history = []
         for g in tqdm(range(self.generations)):
-            # print(g)
-            current_best = self.divide_article()
+            current_best = self.divide()
             current_g = g + 1
             history.append(current_best)
             if current_best == -1:
@@ -75,16 +73,11 @@ class DifferentialEvolution:
             for i in range(self.division_count):
                 result = p.submit(self.diff_evolve, self.divisions[i])
                 results.append(result)
-                # self.divisions[i] = self.diff_evolve(self.divisions[i])
-                # self.initial_population += self.divisions[i]
             for idx, res in enumerate(as_completed(results)):
-            #     print("completed", idx)
                 self.divisions[idx] = res.result()
-            #     print("popsize-", len(self.initial_population))
                 self.initial_population += self.divisions[idx]
         p.shutdown()
         self.initial_population = sorted(self.initial_population, key=lambda x: x.fitness[0])
-        # print(list(map(lambda x: x.fitness[0], self.initial_population)))
         return self.initial_population[0].fitness, current_g, history,
 
     def diff_evolve(self, division):
@@ -137,42 +130,18 @@ class DifferentialEvolution:
                     arguments.append(random.choice(self.varbound[i]))
             result = p.submit(init_vector, self.function, arguments)
             futures.append(result)
-            # population.append(Vector(self.function, arguments))
         for future in as_completed(futures):
             population.append(future.result())
         p.shutdown()
         return population
 
-    def divide_improve(self):
-        sorted_population = sorted(self.initial_population, key=lambda x: x.fitness[0], reverse=True)
-        div = []
-        # for _ in range(self.division_count):
-        #     div.append([])
-        # for i in range(len(sorted_population)):
-        #     for j in range(self.division_count):
-        #         if sorted_population[i].fitness[0] == 1.:
-        #             div[self.division_count - 1].append(sorted_population[i])
-        #             break
-        #         if self.tresholds[j] < sorted_population[i].fitness[0] <= self.tresholds[j + 1]:
-        #             div[j].append(sorted_population[i])
-        #             break
-        division_size = int(len(sorted_population) / self.division_count)
-        for i in range(0, self.division_count):
-            div.append(sorted_population[i * division_size: (i + 1) * division_size])
-
-        for i in range(self.division_count):
-            self.divisions[i] = div[i]
-        print(list(map(lambda x: len(x), self.divisions)))
-        return sorted_population[0].fitness[0]
-
-
-    def divide_article(self):
+    def divide(self):
         fit = list(map(lambda x: x.fitness[0], self.initial_population))
         avg_fitness = np.mean(fit)
         std_dev = np.std(fit)
         f_min = np.min(fit)
         treshholds = []
-        for i in range(1, self.division_count):  # кол-во уровней
+        for i in range(1, self.division_count):
             treshholds.append(avg_fitness - (i - 1) * (std_dev - avg_fitness + f_min) / (self.division_count-2))
         treshholds.append(np.max(fit))
         treshholds.reverse()
@@ -184,8 +153,6 @@ class DifferentialEvolution:
                 if fit[i] <= treshholds[j]:
                     pop_level[i] = j
 
-        # for i in range(len(pop_level)):
-        #     self.divisions[i] = pop_level[i]
         divisions = []
         for _ in range(self.division_count):
             divisions.append([])
@@ -194,22 +161,7 @@ class DifferentialEvolution:
             divisions[lvl].append(self.initial_population[id])
 
         self.divisions = divisions
-        # print(list(map(lambda x: len(x), self.divisions)))
         return sorted(self.initial_population, key=lambda x: x.fitness[0])[0].fitness[0]
-
-
-    #linear divide
-    def divide(self):
-        sorted_population = sorted(self.initial_population, key=lambda x: x.fitness, reverse=True)
-        if len(sorted_population) % self.division_count != 0:
-            raise ValueError('Population size is not divisible by division count')
-
-        division_size = int(len(sorted_population) / self.division_count)
-        for i in range(0, self.division_count):
-            division = sorted_population[i*division_size: (i+1)*division_size]
-            self.divisions.append(division)
-
-        return self.divisions
 
 def init_vector(func, params):
     return Vector(func, params)
