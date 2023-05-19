@@ -1,32 +1,42 @@
 from classifier.classifiers import ParallelClassifier
-from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import train_test_split
+from sklearn.datasets import make_classification
 import pandas as pd
 
-from sklearn.metrics import accuracy_score
+
+def get_data():
+    X, y = make_classification(n_samples=2000,
+                               n_features=20,
+                               n_informative=10,
+                               random_state=100,
+                               weights=[0.8])
+    dataset = pd.DataFrame(X)
+    dataset['y'] = y
+    normal_data = dataset[dataset.y == 0]
+    normal_data.iloc[:, -1] = 1
+    outlier_data = dataset[dataset.y == 1]
+    outlier_data.iloc[:, -1] = -1
+    train = normal_data.iloc[:1000, :]
+    test = normal_data.iloc[1001:, :]
+    outliers = outlier_data.iloc[:, :]
+
+    return train, pd.concat([test, outliers])
+
 
 if __name__ == "__main__":
-    df = pd.DataFrame(load_breast_cancer().data, columns=load_breast_cancer().feature_names)
-    df["target"] = load_breast_cancer().target
-    normal_data = df[df["target"] == 0]
-    anomaly_data = df[df["target"] == 1]
-
-    X_train, X_test, y_train, y_test = train_test_split(df.iloc[:, :-1],
-                                                        df.iloc[:, -1],
-                                                        test_size=0.2,
-                                                        random_state=128)
+    train, test = get_data()
     clf = ParallelClassifier(["oc-svm", "if", "lof"])
     varbounds = []
+
     # Varbounds for SVM (kernel, nu, degree, gamma, coef0, shrinking)
-    varbound_svm = [['linear', 'poly', 'rbf', 'sigmoid'],
+    varbound_svm = [['linear', 'rbf', 'sigmoid'],
                              [0, 1],
-                             [0, 5],
-                             [0, 1],
+                             [0, 3],
+                             [0, 100],
                              [0, 1],
                              [True, False]]
     varbounds.append(varbound_svm)
 
-    # Varbounds for IF (n_estimators, max_samples, contamination, max_features, bootstrap
+    # Varbounds for IF (n_estimators, max_samples, contamination, max_features, bootstrap)
     varbound_if = [[1, 100],
                    [1, 100],
                    [0, 0.5],
@@ -44,7 +54,4 @@ if __name__ == "__main__":
 
     varbounds.append(varbound_lof)
 
-    clf.fit(X_train, X_test, y_train, y_test, varbounds)
-
-    pred = clf.predict(X_test)
-    print(accuracy_score(y_test, pred))
+    clf.fit(train.iloc[:,:-1], test, varbounds)
