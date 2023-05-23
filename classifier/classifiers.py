@@ -25,30 +25,30 @@ class ParallelClassifier:
 
         models.append(opt.Optimization('differential-evolution',
                                        function=self.one_class_svm_func,
-                                       population_size=100,
+                                       population_size=50,
                                        crossover_rate=0.3,
                                        F=1,
-                                       generations=100,
+                                       generations=50,
                                        division_count=5,
                                        varbound=varbound[self.classifiers.index('oc-svm')],
                                        vartype=['str', 'real', 'int', 'real', 'real', 'bool']))
 
         models.append(opt.Optimization('differential-evolution',
                                        function=self.if_func,
-                                       population_size=100,
+                                       population_size=50,
                                        crossover_rate=0.3,
                                        F=1,
-                                       generations=100,
+                                       generations=50,
                                        division_count=5,
                                        varbound=varbound[self.classifiers.index('if')],
                                        vartype=['int', 'int', 'real', 'real', 'bool']))
 
         models.append(opt.Optimization('differential-evolution',
                                        function=self.lof_func,
-                                       population_size=100,
+                                       population_size=50,
                                        crossover_rate=0.3,
                                        F=1,
-                                       generations=100,
+                                       generations=50,
                                        division_count=5,
                                        varbound=varbound[self.classifiers.index('lof')],
                                        vartype=['int', 'str', 'int', 'str', 'int', 'real']))
@@ -60,7 +60,7 @@ class ParallelClassifier:
         temp_res = 0
         best_clf = None
         for clf, res in self.best_results.items():
-            if res[0] > temp_res:
+            if res[0] < temp_res:
                 temp_res = res[0]
                 best_clf = res[1]
         self.best_classifier = best_clf

@@ -10,7 +10,11 @@ class Vector:
     def __init__(self, function, params):
         self.function = function
         self.params = params
-
+        self.F = 1
+        self.CR = 0.3
+        self.F_next = None
+        self.CR_next = None
+        self.generations_without_change = 0
         self.fitness = self.function(self.params)
 
     def __add__(self, other):
@@ -52,8 +56,9 @@ class DifferentialEvolution:
         self.scaler = MinMaxScaler()
         self.division_count = division_count
         self.divisions = []
-        self.F = F
-        self.crossover_rate = crossover_rate
+        # self.F = F
+        # self.crossover_rate = crossover_rate
+        self.tau = 0.1
         for _ in range(division_count):
             self.divisions.append([])
         self.generations = generations
@@ -76,6 +81,9 @@ class DifferentialEvolution:
             for idx, res in enumerate(as_completed(results)):
                 self.divisions[idx] = res.result()
                 self.initial_population += self.divisions[idx]
+            # print(list(map(lambda x: [x.F, x.F_next], self.initial_population)))
+            self.generate_new_individuals()
+            print(list(map(lambda x: x.generations_without_change, self.initial_population)))
         p.shutdown()
         self.initial_population = sorted(self.initial_population, key=lambda x: x.fitness[0])
         return self.initial_population[0].fitness, current_g, history,
@@ -87,27 +95,43 @@ class DifferentialEvolution:
         for x in range(len(division)):
             random_list = [i for i in range(len(division)) if i != x]
             ids = random.sample(random_list, 3)
-            m_v = self.do_mutation(division[ids[0]], division[ids[1]], division[ids[2]])
+            # self.adapt_parameters(division[x])
+            m_v = self.do_mutation(division[ids[0]], division[ids[1]], division[ids[2]], division[x].F)
             try:
                 tr_v = self.do_crossover(division[x], m_v)
             except Exception:
+                division[x].generations_without_change += 1
                 new_generation.append(division[x])
                 continue
             if tr_v.fitness[0] < division[x].fitness[0]:
                 new_generation.append(tr_v)
             else:
+                division[x].generations_without_change += 1
                 new_generation.append(division[x])
         return new_generation
 
-    def do_mutation(self, v1, v2, v3):
-        v = v1 + self.F * (v2 - v3)
+    def adapt_parameters(self, v):
+
+        v.F = v.F_next if v.F_next is not None else v.F
+        v.CR = v.CR_next if v.CR_next is not None else v.CR
+
+        r_1 = random.uniform(0, 1)
+        if r_1 < self.tau:
+            v.F_next = 0.1 + random.uniform(0, 1) * 0.9
+        r_2 = random.uniform(0, 1)
+        if r_2 < self.tau:
+            v.CR_next = random.uniform(0, 1)
+
+    def do_mutation(self, v1, v2, v3, F):
+        v = v1 + F * (v2 - v3)
+        # v = v1 + self.F * (v2 - v3)
         return v
 
     def do_crossover(self, x, v):
         r_ind = random.randint(0, len(x.params))
         for i in range(len(x.params)):
             r = random.uniform(0, 1)
-            if r < self.crossover_rate or i == r_ind:
+            if r < x.CR or i == r_ind:
                 v.params[i] = x.params[i]
         if self.function.__name__ == 'one_class_svm_func' and v.params[2] > 5:
             v.params[2] = 5
@@ -134,6 +158,28 @@ class DifferentialEvolution:
             population.append(future.result())
         p.shutdown()
         return population
+
+    def generate_new_individuals(self):
+        worst_individuals = sorted(self.initial_population, key=lambda x: x.fitness[0], reverse=True)[:int(self.population_size * 0.5)]
+        new_individuals = []
+        for ind in worst_individuals:
+            if ind.generations_without_change >= 10:
+                arguments = []
+                for i in range(len(self.varbound)):
+                    if self.vartype[i] == 'int':
+                        arguments.append(random.randint(self.varbound[i][0], self.varbound[i][1]))
+                    elif self.vartype[i] == 'real':
+                        arguments.append(random.uniform(self.varbound[i][0], self.varbound[i][1]))
+                    elif self.vartype[i] == 'str':
+                        arguments.append(random.choice(self.varbound[i]))
+                    elif self.vartype[i] == 'bool':
+                        arguments.append(random.choice(self.varbound[i]))
+                new_individuals.append(init_vector(self.function, arguments))
+            else:
+                new_individuals.append(ind)
+        self.initial_population.sort(key=lambda x: x.fitness[0])
+        self.initial_population = self.initial_population[:self.population_size - int(self.population_size * 0.5)]
+        self.initial_population += new_individuals
 
     def divide(self):
         fit = list(map(lambda x: x.fitness[0], self.initial_population))
